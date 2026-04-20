@@ -1,0 +1,158 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel } from "../../lib/data";
+import { stableEncode } from "../../lib/ids";
+
+const data = await loadDataModel();
+const companies = [...new Set(data.lines.map((l) => l.company))].sort((a, b) => a.localeCompare(b, "ja"));
+const linesByCompanyMap = new Map();
+for (const l of data.lines) {
+  if (!linesByCompanyMap.has(l.company)) linesByCompanyMap.set(l.company, []);
+  const arr = linesByCompanyMap.get(l.company);
+  if (!arr.includes(l.line)) arr.push(l.line);
+}
+for (const arr of linesByCompanyMap.values()) arr.sort((a: string, b: string) => a.localeCompare(b, "ja"));
+
+const melodiesJSON = data.melodies.slice().sort((a, b) => a.name.localeCompare(b.name, "ja")).map(m => ({
+  name: m.name,
+  companies: [...new Set(m.usages.map(u => u.company))],
+  lines: [...new Set(m.usages.map(u => u.line))],
+  usageCount: m.usages.length,
+  audioUrl: m.audioUrls[0] || null,
+  audioCompany: m.usages[0]?.company || "",
+  audioLine: m.usages[0]?.line || ""
+}));
+const companiesJSON = JSON.stringify(companies);
+const linesByCompanyJSON = JSON.stringify(Object.fromEntries(linesByCompanyMap));
+---
+
+<SiteLayout title="メロディ一覧 — どこでも駅メロ">
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <span>メロディから探す</span>
+  </nav>
+
+  <div class="panel panel-pad">
+    <h1 class="h1">メロディから探す</h1>
+    <p class="muted">同じメロディが複数の駅で使われることがあります。</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center;">
+      <input type="text" id="searchInput" placeholder="メロディ名で検索…" class="search" style="flex: 1; min-width: 200px;" />
+      <select id="companyFilter" class="btn" style="padding: 10px;"><option value="">全ての会社</option></select>
+      <select id="lineFilter" class="btn" style="padding: 10px;"><option value="">全ての路線</option></select>
+      <button id="clearBtn" class="btn" style="padding: 10px;">クリア</button>
+    </div>
+    <div id="resultInfo" class="meta" style="margin-top:12px;"></div>
+  </div>
+
+  <section class="panel" style="margin-top:24px;">
+    <ul id="melodiesList" class="list"></ul>
+  </section>
+
+  <div id="pagerContainer" style="margin-top: 24px;"></div>
+</SiteLayout>
+
+<script define:vars={{ melodiesJSON, companiesJSON, linesByCompanyJSON }}>
+  const allMelodies = melodiesJSON;
+  const companies = JSON.parse(companiesJSON);
+  const linesByCompany = JSON.parse(linesByCompanyJSON);
+  const PAGE_SIZE = 50;
+  let currentPage = 1;
+  let filtered = allMelodies;
+
+  const searchInput = document.getElementById("searchInput");
+  const companyFilter = document.getElementById("companyFilter");
+  const lineFilter = document.getElementById("lineFilter");
+  const clearBtn = document.getElementById("clearBtn");
+  const resultInfo = document.getElementById("resultInfo");
+  const melodiesList = document.getElementById("melodiesList");
+  const pagerContainer = document.getElementById("pagerContainer");
+
+  companies.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    companyFilter.appendChild(opt);
+  });
+
+  function encode(s) {
+    return encodeURIComponent(s).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  }
+
+  function updateLines() {
+    lineFilter.innerHTML = '<option value="">全ての路線</option>';
+    const co = companyFilter.value;
+    if (co && linesByCompany[co]) {
+      linesByCompany[co].forEach(line => {
+        const opt = document.createElement('option');
+        opt.value = line;
+        opt.textContent = line;
+        lineFilter.appendChild(opt);
+      });
+    }
+  }
+
+  function doFilter() {
+    const q = searchInput.value.toLowerCase();
+    const co = companyFilter.value;
+    const li = lineFilter.value;
+    filtered = allMelodies.filter(m => {
+      if (q && !m.name.toLowerCase().includes(q)) return false;
+      if (co && !m.companies.includes(co)) return false;
+      if (li && !m.lines.includes(li)) return false;
+      return true;
+    });
+    currentPage = 1;
+    render();
+  }
+
+  function render() {
+    const total = Math.ceil(filtered.length / PAGE_SIZE);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = Math.min(currentPage * PAGE_SIZE, filtered.length);
+
+    if (!filtered.length) {
+      resultInfo.innerHTML = '<span>検索結果がありません</span>';
+      melodiesList.innerHTML = '';
+      pagerContainer.innerHTML = '';
+      return;
+    }
+
+    resultInfo.innerHTML = `<strong>${filtered.length}種類</strong>が見つかりました${total > 1 ? ` • ページ ${currentPage}/${total}` : ''} • ${start + 1}～${end}件表示`;
+    
+    const items = filtered.slice(start, end);
+    melodiesList.innerHTML = items.map(m => `
+      <li>
+        <div style="flex: 1;">
+          <a href="/melodies/${encode(m.name)}" style="font-weight:600; color: inherit;">${m.name}</a>
+          <div class="meta" style="margin-top: 4px;">使用 ${m.usageCount}件</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          ${m.audioUrl ? `<button class="btn btn-primary" data-play data-url="${m.audioUrl}" data-title="${m.name}" data-subtitle="${m.audioCompany} / ${m.audioLine}" style="padding: 4px 8px; font-size: 14px; font-weight: 600; min-width: auto;" title="再生">▶</button>` : ''}
+          <a class="btn" href="/melodies/${encode(m.name)}" style="font-size: 12px; padding: 6px 16px;">開く</a>
+        </div>
+      </li>
+    `).join('');
+
+    if (total <= 1) { pagerContainer.innerHTML = ''; return; }
+
+    const pages = [];
+    for (let p = Math.max(1, currentPage - 2); p <= Math.min(total, currentPage + 2); p++) pages.push(p);
+    
+    let h = '<nav class="pager"><button class="btn" onclick="window.mp(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>最初</button>';
+    h += '<button class="btn" onclick="window.mp(' + Math.max(1, currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '>前へ</button>';
+    h += '<div class="pager-pages">';
+    if (pages[0] > 1) h += '<span class="meta">…</span>';
+    pages.forEach(p => h += '<button class="btn ' + (p === currentPage ? 'btn-primary' : '') + '" onclick="window.mp(' + p + ')">' + p + '</button>');
+    if (pages[pages.length - 1] < total) h += '<span class="meta">…</span>';
+    h += '</div><button class="btn" onclick="window.mp(' + Math.min(total, currentPage + 1) + ')" ' + (currentPage === total ? 'disabled' : '') + '>次へ</button>';
+    h += '<button class="btn" onclick="window.mp(' + total + ')" ' + (currentPage === total ? 'disabled' : '') + '>最後</button></nav>';
+    pagerContainer.innerHTML = h;
+  }
+
+  window.mp = (p) => { currentPage = p; render(); melodiesList.scrollIntoView({ behavior: 'smooth' }); };
+  searchInput.addEventListener('input', doFilter);
+  companyFilter.addEventListener('change', () => { updateLines(); doFilter(); });
+  lineFilter.addEventListener('change', doFilter);
+  clearBtn.addEventListener('click', () => { searchInput.value = ''; companyFilter.value = ''; lineFilter.value = ''; updateLines(); doFilter(); });
+  render();
+</script>

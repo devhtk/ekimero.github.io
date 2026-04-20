@@ -1,0 +1,47 @@
+---
+type Props = {
+  page: number;
+  totalPages: number;
+  basePath: string;
+  query?: string;
+  company?: string;
+  line?: string;
+};
+
+const { page, totalPages, basePath, query = "", company = "", line = "" } = Astro.props;
+if (totalPages <= 1) return;
+
+function buildUrl(p: number) {
+  const params = new URLSearchParams();
+  if (p > 1) params.set("page", String(p));
+  if (query) params.set("q", query);
+  if (company) params.set("company", company);
+  if (line) params.set("line", line);
+  const qs = params.toString();
+  return qs ? `${basePath}?${qs}` : basePath;
+}
+
+const windowSize = 2;
+const pages = [];
+for (let p = Math.max(1, page - windowSize); p <= Math.min(totalPages, page + windowSize); p++) {
+  pages.push(p);
+}
+---
+<nav class="pager" aria-label="ページ送り">
+  <a class="btn" href={buildUrl(1)} aria-disabled={page === 1 ? "true" : undefined}>最初</a>
+  <a class="btn" href={buildUrl(Math.max(1, page - 1))} aria-disabled={page === 1 ? "true" : undefined}>前へ</a>
+
+  <div class="pager-pages">
+    {pages[0] > 1 ? <span class="meta">…</span> : null}
+    {pages.map((p) => (
+      <a class={p === page ? "btn btn-primary" : "btn"} href={buildUrl(p)} aria-current={p === page ? "page" : undefined}>
+        {p}
+      </a>
+    ))}
+    {pages[pages.length - 1] < totalPages ? <span class="meta">…</span> : null}
+  </div>
+
+  <a class="btn" href={buildUrl(Math.min(totalPages, page + 1))} aria-disabled={page === totalPages ? "true" : undefined}>次へ</a>
+  <a class="btn" href={buildUrl(totalPages)} aria-disabled={page === totalPages ? "true" : undefined}>最後</a>
+</nav>
+

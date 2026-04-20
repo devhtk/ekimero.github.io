@@ -1,0 +1,131 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel } from "../../lib/data";
+import { stableEncode, getLineLogo } from "../../lib/ids";
+import { getLineLogo as getLineLogoFromBranding } from "../../lib/branding";
+
+const data = await loadDataModel();
+const companies = [...new Set(data.lines.map((l) => l.company))].sort((a, b) => a.localeCompare(b, "ja"));
+// Sort by company, then by station count (descending), then by line name
+const allLines = data.lines.slice().sort((a, b) => {
+  const cc = a.company.localeCompare(b.company, "ja");
+  if (cc !== 0) return cc;
+  const sc = b.stationIds.length - a.stationIds.length;
+  if (sc !== 0) return sc;
+  return a.line.localeCompare(b.line, "ja");
+});
+const linesJSON = allLines.map(l => ({ line: l.line, company: l.company, stationCount: l.stationIds.length, usageCount: l.usages.length }));
+const companiesJSON = JSON.stringify(companies);
+---
+
+<SiteLayout title="路線一覧 — どこでも駅メロ">
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <span>路線から探す</span>
+  </nav>
+
+  <div class="panel panel-pad">
+    <h1 class="h1">路線から探す</h1>
+    <p class="muted">路線ごとに、駅とメロディの使用状況を見られます。</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center;">
+      <input type="text" id="searchInput" placeholder="路線名で検索…" class="search" style="flex: 1; min-width: 200px;" />
+      <select id="companyFilter" class="btn" style="padding: 10px;"><option value="">全ての会社</option></select>
+      <button id="clearBtn" class="btn" style="padding: 10px;">クリア</button>
+    </div>
+    <div id="resultInfo" class="meta" style="margin-top:12px;"></div>
+  </div>
+
+  <section class="panel" style="margin-top:24px;">
+    <ul id="linesList" class="list"></ul>
+  </section>
+
+  <div id="pagerContainer" style="margin-top: 24px;"></div>
+</SiteLayout>
+
+<script define:vars={{ linesJSON, companiesJSON }}>
+  const allLines = linesJSON;
+  const companies = JSON.parse(companiesJSON);
+  const PAGE_SIZE = 50;
+  let currentPage = 1;
+  let filtered = allLines;
+
+  const searchInput = document.getElementById("searchInput");
+  const companyFilter = document.getElementById("companyFilter");
+  const clearBtn = document.getElementById("clearBtn");
+  const resultInfo = document.getElementById("resultInfo");
+  const linesList = document.getElementById("linesList");
+  const pagerContainer = document.getElementById("pagerContainer");
+
+  companies.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    companyFilter.appendChild(opt);
+  });
+
+  function encode(s) {
+    return encodeURIComponent(s).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  }
+
+  function doFilter() {
+    const q = searchInput.value.toLowerCase();
+    const co = companyFilter.value;
+    filtered = allLines.filter(l => {
+      if (q && !l.line.toLowerCase().includes(q) && !l.company.toLowerCase().includes(q)) return false;
+      if (co && l.company !== co) return false;
+      return true;
+    });
+    currentPage = 1;
+    render();
+  }
+
+  function render() {
+    const total = Math.ceil(filtered.length / PAGE_SIZE);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = Math.min(currentPage * PAGE_SIZE, filtered.length);
+
+    if (!filtered.length) {
+      resultInfo.innerHTML = '<span>検索結果がありません</span>';
+      linesList.innerHTML = '';
+      pagerContainer.innerHTML = '';
+      return;
+    }
+
+    resultInfo.innerHTML = `<strong>${filtered.length}件</strong>が見つかりました${total > 1 ? ` • ページ ${currentPage}/${total}` : ''} • ${start + 1}～${end}件表示`;
+    
+    const items = filtered.slice(start, end);
+    linesList.innerHTML = items.map(l => `
+      <li>
+        <div style="flex: 1;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <img src="/images/${encodeURIComponent(l.line)}.png" alt="" style="height:20px; width:auto; vertical-align:middle;" onerror="this.style.display='none'" border-radius: 4px />
+            <a href="/lines/${encode(l.line)}" style="font-weight:600; color: inherit;">${l.line}</a>
+          </div>
+          <div class="meta" style="margin-top: 4px;">${l.company} ・ 駅 ${l.stationCount}駅 ・ 使用 ${l.usageCount}件</div>
+        </div>
+        <a class="btn" href="/lines/${encode(l.line)}" style="font-size: 12px; padding: 6px 16px;">開く</a>
+      </li>
+    `).join('');
+
+    if (total <= 1) { pagerContainer.innerHTML = ''; return; }
+
+    const pages = [];
+    for (let p = Math.max(1, currentPage - 2); p <= Math.min(total, currentPage + 2); p++) pages.push(p);
+    
+    let h = '<nav class="pager"><button class="btn" onclick="window.lp(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>最初</button>';
+    h += '<button class="btn" onclick="window.lp(' + Math.max(1, currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '>前へ</button>';
+    h += '<div class="pager-pages">';
+    if (pages[0] > 1) h += '<span class="meta">…</span>';
+    pages.forEach(p => h += '<button class="btn ' + (p === currentPage ? 'btn-primary' : '') + '" onclick="window.lp(' + p + ')">' + p + '</button>');
+    if (pages[pages.length - 1] < total) h += '<span class="meta">…</span>';
+    h += '</div><button class="btn" onclick="window.lp(' + Math.min(total, currentPage + 1) + ')" ' + (currentPage === total ? 'disabled' : '') + '>次へ</button>';
+    h += '<button class="btn" onclick="window.lp(' + total + ')" ' + (currentPage === total ? 'disabled' : '') + '>最後</button></nav>';
+    pagerContainer.innerHTML = h;
+  }
+
+  window.lp = (p) => { currentPage = p; render(); linesList.scrollIntoView({ behavior: 'smooth' }); };
+  searchInput.addEventListener('input', doFilter);
+  companyFilter.addEventListener('change', doFilter);
+  clearBtn.addEventListener('click', () => { searchInput.value = ''; companyFilter.value = ''; doFilter(); });
+  render();
+</script>

@@ -1,0 +1,21 @@
+{
+  "name": "dokodemo-ekimero-v2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./scripts/sync-audio.mjs && astro dev",
+    "build": "node ./scripts/sync-audio.mjs && astro check && astro build",
+    "preview": "astro preview",
+    "check": "NODE_OPTIONS='--max-old-space-size=12288' astro check"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.2",
+    "astro": "^6.1.8",
+    "fuse.js": "^7.1.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.8",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
+  }
+}

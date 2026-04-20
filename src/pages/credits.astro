@@ -1,0 +1,125 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const audioContributors = [
+  { name: "全国駅メロチャンネル様", handle: "@e231kei", url: "https://www.youtube.com/@e231kei", img: "https://yt3.googleusercontent.com/UVu-eddp0naCuWHVhS-7QetTyebxApI4y2oxSBgqfov2RJvKdBLGBHb_jU1Z9k60HHwjQvalAw=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "みるでぃす様", handle: "@みるでぃす", url: "https://www.youtube.com/@みるでぃす", img: "https://yt3.googleusercontent.com/ytc/AIdro_l5Vdqgvy8ozYfNj6eBlWDgYvHJTbDH3r58Nc5QMd4UOA=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "関石ライン / Kamishi Line様", handle: "@KamishiLine209", url: "https://www.youtube.com/@KamishiLine209", img: "https://yt3.googleusercontent.com/hlbJl7mHfNIf59ckWWYWNzJV53OEsL_uQK1S5kd6mwuGeVwCNwtsFYnp0PCC0ieXcvufl33D=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "北多磨様", handle: "@nekoneko_chitose", url: "https://www.youtube.com/@nekoneko_chitose", img: "https://yt3.googleusercontent.com/cv-EggXhj1vPggDomB72WEEuxXfv3aq5z6vBaFwz0hL8TynQCC9ePNQHrSfqfzzjmk6sau40zA=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "りつん様", handle: "@りつん_Ritun", url: "https://www.youtube.com/@りつん_Ritun", img: "https://yt3.googleusercontent.com/0CaK1H0hv00L_h-m1Bsg0jqZG8P3dxxEdltWZ2hgq-soWBsDCCB8AKPitvdvB_ey_FDY6_D6x5E=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "あたてつ様", handle: "@あたてつ", url: "https://www.youtube.com/@あたてつ", img: "https://yt3.googleusercontent.com/fAmIdrIwsxkFi5wbNzzDVUwWRylCdK-3aDj0BasJCjiy2otX-MDSV3LY-2JoJmCVWulYt-0j=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "宇都宮線好き様", handle: "@宇都宮線好き", url: "https://www.youtube.com/@宇都宮線好き", img: "https://yt3.googleusercontent.com/vADmIPNtlPgDNRSx09oFAO_zMhsZTdM11dcvkIKw3RW-Xw6DRRoOl9czGYDjYAESok60FIkBTEQ=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "京葉ラビット様", handle: "@keyo_rabbit", url: "https://www.youtube.com/@keyo_rabbit", img: "https://yt3.googleusercontent.com/T5aO73AgvHDqJ2fgdzl5EH2NIdZjwpXuMJbgGmNwApp2Z7XqDaFIK4cseREuzQ4vExcHuuzK=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "H.S様", handle: "@H.S.-cn9pf", url: "https://www.youtube.com/@H.S.-cn9pf", img: "https://yt3.googleusercontent.com/Vu69pgpkgBSDuaTsGEv_eEqbz8N_u3fUERci53vHj6-uIjn1pXR00jUL7GldXLxYvosmYGZbXtU=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "京浜特快神戸行様", handle: "@Tokyo.JT-01", url: "https://www.youtube.com/@Tokyo.JT-01", img: "https://yt3.googleusercontent.com/FQUzH01grLVOx_qY0AzK_jflchzsnp_Q6pp6jSnlvuhHxbmu9wvPPHXizeRF1t6cCigmw8o8cw=s160-c-k-c0x00ffffff-no-rj" },
+  { name: "カレサ様", handle: "@kawairail5385", url: "https://www.youtube.com/@kawairail5385", img: "https://yt3.googleusercontent.com/7_eDeX7re9hOiodJazs5pfg0nBGpwPwylcbxH2kyLnivBt4sk5xEnI-5i5FYMexqp_nYB9JF4oQ=s160-c-k-c0x00ffffff-no-rj" },
+];
+
+const imageContributors = [
+  { name: "写真素材Railstation", url: "https://www.uraken.net/railstation/#" },
+  { name: "Photock", url: "https://photock.jp/" },
+  { name: "駅ナンバリング一覧", url: "https://cross-hatch.wixsite.com/numbering" },
+];
+
+const guidelines = [
+  "各メロディーの制作者様・収録者様を尊重してご利用ください。",
+  "当サイトからの音声ファイルのダウンロードは固く禁止しております。",
+  "音声・画像などの無断転載や二次配布は固くお断りしております。",
+  "音声は、必要に応じて編集している場合があります。",
+  "音声を二次利用される場合は、必ず提供者様の許可を取得してください。",
+  "なお、許可を得るためでない場合、提供者様への直接のお問い合わせはご遠慮ください。",
+  "当サイトのコンテンツ（音声など）をSNS等に無断で投稿することはご遠慮ください。",
+  "サイトの利用にあたって、音声やコンテンツを不適切な目的（誹謗中傷など）で使用することはお控えください。",
+  "当サイトは非営利目的で運営しており、収益化の計画は一切ございません。",
+  "音声ファイルが存在しない場合や、音源・駅のメロディーが違う場合がございます。ご注意ください。",
+];
+---
+
+<SiteLayout title="素材提供・利用規約 — どこでも駅メロ">
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt;
+    <span>素材提供・利用規約</span>
+  </nav>
+
+  <!-- Hero Section matching Homepage/Theme -->
+  <section class="panel hero" style="text-align: center;">
+    <h1 class="hero-title">素材提供・利用規約</h1>
+    <p class="hero-sub" style="max-width: 800px; margin-left: auto; margin-right: auto;">
+      素材をお借りさせていただき、ありがとうございます。<br />
+      <strong style="color: #ff4d4d; font-weight: 700;">※当サイトからの音声ファイルなどのダウンロードは固く禁止しております。</strong>
+    </p>
+  </section>
+
+  <div class="grid" style="margin-top: 16px;">
+    <!-- Guidelines Section -->
+    <section class="panel col-12">
+      <div class="panel-pad" style="border-bottom:1px solid var(--border); background: rgba(0,0,0,0.02);">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">利用規約・注意事項</h2>
+        <div class="meta">当サイトをご利用する前に必ずお読みください</div>
+      </div>
+      <div class="panel-pad">
+        <ul class="list" style="border: none;">
+          {guidelines.map(g => (
+            <li style="padding: 12px 0; border-top: 1px solid var(--border); display: block; line-height: 1.8;">
+              <span style="color: var(--accent); margin-right: 8px;">•</span> {g}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- Audio Contributors -->
+    <section class="panel col-12">
+      <div class="panel-pad" style="border-bottom:1px solid var(--border); background: rgba(0,0,0,0.02);">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">音声</h2>
+        <div class="meta">以下の各チャンネルから許可を得て音源をお借りしています。</div>
+      </div>
+      <div class="panel-pad">
+        <div class="grid">
+          {audioContributors.map(c => (
+            <a href={c.url} target="_blank" class="panel col-4 col-6-tablet col-12-mobile" style="text-decoration: none; background: var(--bg); transition: all 0.2s;">
+              <div class="panel-pad" style="display: flex; align-items: center; gap: 12px; padding: 12px;">
+                <img src={c.img} alt={c.name} style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: #fff;" />
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 700; color: var(--text); font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{c.name}</div>
+                  <div class="meta" style="font-size: 0.8em;">{c.handle}</div>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Image Contributors -->
+    <section class="panel col-12">
+      <div class="panel-pad" style="border-bottom:1px solid var(--border); background: rgba(0,0,0,0.02);">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">画像</h2>
+        <div class="meta">写真・ナンバリング素材等の提供元一覧です。</div>
+      </div>
+      <div class="panel-pad">
+        <div class="grid">
+          {imageContributors.map(c => (
+            <a href={c.url} target="_blank" class="panel col-4 col-6-tablet col-12-mobile" style="text-decoration: none; background: var(--bg); transition: all 0.2s;">
+              <div class="panel-pad" style="text-align: center; padding: 16px;">
+                <div style="font-weight: 700; color: var(--text); font-size: 0.95em;">{c.name}</div>
+                <div class="meta" style="font-size: 0.8em; margin-top: 4px;">公式サイトを表示 →</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  </div>
+</SiteLayout>
+
+<style>
+  a.panel:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent) !important;
+    background: var(--panel) !important;
+  }
+  .list li:first-child {
+    border-top: none !important;
+  }
+</style>

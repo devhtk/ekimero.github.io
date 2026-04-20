@@ -1,0 +1,166 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import { loadDataModel, type Station } from "../lib/data";
+import { stableEncode } from "../lib/ids";
+import { stableEncode } from "../lib/ids";
+import { companyLogo } from "../lib/branding";
+
+const data = await loadDataModel();
+const usageCount = data.usages.length;
+const companyMap = new Map<string, { lineCount: number; stationSet: Set<string>; usageCount: number }>();
+for (const u of data.usages) {
+  const cur = companyMap.get(u.company) ?? { lineCount: 0, stationSet: new Set<string>(), usageCount: 0 };
+  cur.stationSet.add(u.stationId);
+  cur.usageCount += 1;
+  companyMap.set(u.company, cur);
+}
+for (const c of data.lines) {
+  const cur = companyMap.get(c.company) ?? { lineCount: 0, stationSet: new Set<string>(), usageCount: 0 };
+  cur.lineCount += 1;
+  companyMap.set(c.company, cur);
+}
+const companies = [...companyMap.entries()]
+  .map(([name, v], index) => ({
+    name,
+    id: stableEncode(name),
+    index,
+    lineCount: v.lineCount,
+    stationCount: v.stationSet.size,
+    usageCount: v.usageCount,
+    logo: companyLogo(name),
+  }))
+  .sort((a, b) => b.usageCount - a.usageCount);
+
+const featuredStations = [
+  data.stations.find((s) => s.station === "東京"),
+  data.stations.find((s) => s.station === "新宿"),
+  data.stations.find((s) => s.station === "渋谷"),
+  data.stations.find((s) => s.station === "池袋"),
+  data.stations.find((s) => s.station === "横浜"),
+].filter((s): s is Station => Boolean(s))
+.map((s) => ({
+  ...s,
+  index: data.stations.findIndex(st => st.id === s.id)
+}));
+
+
+const latestUpdates = data.usages
+  .slice(-5)
+  .reverse()
+  .map(u => ({
+    ...u,
+    stationName: data.stations.find(s => s.id === u.stationId)?.station || "不明な駅"
+  }));
+---
+<SiteLayout title="どこでも駅メロ" description="駅メロ・発車メロディーを駅名・路線名・メロディ名で検索・再生できます。">
+  <section class="panel hero">
+    <h1 class="hero-title">どこでも駅メロ</h1>
+    <p class="hero-sub">全国の駅メロ・発車メロディーを、駅名・路線名・メロディ名からすばやく検索・再生。</p>
+    <form action="/search" method="get" style="margin-top:14px;display:flex;gap:8px;">
+      <input class="search" type="search" name="q" placeholder="例: 山手線 / 新宿 / 春 標準" style="flex: 1; width: 100%;" />
+      <button class="btn btn-primary" type="submit" style="white-space: nowrap; padding-left: 20px; padding-right: 20px;">検索</button>
+    </form>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">会社</div>
+        <div class="stat-value">{companies.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">路線</div>
+        <div class="stat-value">{data.lines.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">駅</div>
+        <div class="stat-value">{data.stations.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">メロディ使用データ</div>
+        <div class="stat-value">{usageCount}</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <a class="btn" href="/companies">会社別で探す</a>
+      <a class="btn" href="/stations">駅から探す</a>
+      <a class="btn" href="/lines">路線から探す</a>
+      <a class="btn" href="/melodies">メロディから探す</a>
+    </div>
+  </section>
+
+  <div class="grid" style="margin-top:16px;">
+    <section class="panel panel-pad col-6">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;">
+        <div style="font-weight:700;">会社別カテゴリ</div>
+        <a class="btn" href="/companies">すべて見る</a>
+      </div>
+      <div class="company-grid">
+        {companies.slice(0, 6).map((c) => (
+          <a class="company-card" href={`/companies/${c.id}`} style="text-decoration:none;">
+            <div class="company-head">
+              {c.logo ? <img class="company-logo" src={c.logo} alt={c.name} /> : <div class="company-logo"></div>}
+              <div>
+                <div style="font-weight:700;">{c.name}</div>
+                <div class="meta">路線 {c.lineCount}件 ・ 駅 {c.stationCount}件</div>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <section class="panel panel-pad col-6">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div style="font-weight:700;">人気駅</div>
+        <a class="btn" href="/stations">駅一覧</a>
+      </div>
+      <ul class="list" style="margin-top:10px;">
+        {featuredStations.map((s) => (
+          <li>
+            <div>
+              <a href={`/stations/${stableEncode(s.station)}`} style="font-weight:650;">{s.station}</a>
+              <div class="meta">{[...new Set(s.usages.map((u) => u.line))].slice(0, 2).join(" / ")} ・ 使用 {s.usages.length}件</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <a class="btn" href={`/stations/${stableEncode(s.station)}`}>開く</a>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <a href="/lines" class="panel panel-pad col-3 col-6-tablet col-6-mobile" style="text-decoration:none;">
+      <div style="font-weight:650; color: var(--text);">路線</div>
+      <div class="meta">{data.lines.length}件</div>
+    </a>
+
+    <a href="/stations" class="panel panel-pad col-3 col-6-tablet col-6-mobile" style="text-decoration:none;">
+      <div style="font-weight:650; color: var(--text);">駅</div>
+      <div class="meta">{data.stations.length}件</div>
+    </a>
+
+    <a href="/melodies" class="panel panel-pad col-3 col-6-tablet col-6-mobile" style="text-decoration:none;">
+      <div style="font-weight:650; color: var(--text);">メロディ</div>
+      <div class="meta">{data.melodies.length}件</div>
+    </a>
+
+    <a href="/unused" class="panel panel-pad col-3 col-6-tablet col-6-mobile" style="text-decoration:none;">
+      <div style="font-weight:650; color: var(--text);">未使用・消滅</div>
+      <div class="meta">{data.melodies.length}件</div>
+    </a>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <section class="panel panel-pad col-12">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">最近の更新</h2>
+        <a class="btn" href="/history">開く</a>
+      </div>
+      <p class="meta" style="margin:0 0 12px 0;">2026/04/19</p>
+      <h3 style="font-size: 1.1em; font-weight: 700; margin: 0 0 8px 0; color: var(--text);">サイトをリニューアルしました！</h3>
+      <p style="color: var(--muted); margin: 0; line-height: 1.6;">「どこでも駅メロ」のサイトデザインと構成を全面的にアップデートしました。より使いやすく、よりスムーズにメロディーを楽しめるよう構成を見直しています。リニューアル直後のため、一部表示の崩れやバグが残っている可能性がありますが、順次改善していきます。なお、最新のメロディー使用状況については、来週中を目処に更新する予定です。これからもどうぞよろしくお願いします。</p>
+    </section>
+  </div>
+
+  
+</SiteLayout>

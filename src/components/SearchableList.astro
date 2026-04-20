@@ -1,0 +1,267 @@
+---
+/**
+ * Reusable client-side searchable, filterable, paginated list component
+ * Handles all interactions without page reloads
+ */
+
+interface Item {
+  id: string;
+  [key: string]: any;
+}
+
+export interface Props {
+  items: Item[];
+  pageSize?: number;
+  searchFields?: string[];
+  filters?: {
+    name: string;
+    label: string;
+    options: { value: string; label: string }[];
+    getValue?: (item: Item) => string;
+  }[];
+  renderItem: (item: Item) => any;
+  emptyMessage?: string;
+}
+
+const {
+  items,
+  pageSize = 50,
+  searchFields = [],
+  filters = [],
+  renderItem,
+  emptyMessage = "No items found",
+} = Astro.props;
+
+const componentId = `searchable-list-${Math.random().toString(36).slice(2)}`;
+---
+
+<div id={componentId} class="searchable-list">
+  <div class="searchable-list-controls">
+    <slot name="controls" />
+  </div>
+
+  <div class="searchable-list-results">
+    <div class="searchable-list-info"></div>
+    <ul class="searchable-list-items list"></ul>
+    <div class="searchable-list-pager"></div>
+  </div>
+</div>
+
+<script define:vars={{ componentId, items, pageSize, searchFields, filters, emptyMessage }}>
+  class SearchableList {
+    constructor(containerId, allItems, pageSize, searchFields, filterConfig) {
+      this.container = document.getElementById(containerId);
+      this.allItems = allItems;
+      this.pageSize = pageSize;
+      this.searchFields = searchFields;
+      this.filterConfig = filterConfig;
+      this.currentPage = 1;
+      this.searchQuery = "";
+      this.activeFilters = {};
+      this.filteredItems = allItems;
+
+      this.init();
+    }
+
+    init() {
+      this.setupEventListeners();
+      this.render();
+    }
+
+    setupEventListeners() {
+      // Search input
+      const searchInput = this.container.querySelector(".search-input");
+      if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+          this.searchQuery = e.target.value.toLowerCase();
+          this.currentPage = 1;
+          this.filter();
+        });
+      }
+
+      // Filter selects
+      const filterSelects = this.container.querySelectorAll(".filter-select");
+      filterSelects.forEach((select) => {
+        select.addEventListener("change", (e) => {
+          this.activeFilters[e.target.dataset.filterName] = e.target.value;
+          this.currentPage = 1;
+          this.filter();
+        });
+      });
+
+      // Clear button
+      const clearBtn = this.container.querySelector(".clear-filters-btn");
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+          this.searchQuery = "";
+          this.activeFilters = {};
+          this.currentPage = 1;
+          if (searchInput) searchInput.value = "";
+          filterSelects.forEach((select) => {
+            select.value = "";
+          });
+          this.filter();
+        });
+      }
+    }
+
+    filter() {
+      this.filteredItems = this.allItems.filter((item) => {
+        // Search filter
+        if (this.searchQuery) {
+          const matches = this.searchFields.some((field) => {
+            const value = String(item[field] || "").toLowerCase();
+            return value.includes(this.searchQuery);
+          });
+          if (!matches) return false;
+        }
+
+        // Custom filters
+        for (const filterName in this.activeFilters) {
+          const filterValue = this.activeFilters[filterName];
+          if (!filterValue) continue;
+
+          const filterDef = this.filterConfig.find((f) => f.name === filterName);
+          if (filterDef && filterDef.getValue) {
+            const itemValue = filterDef.getValue(item);
+            if (itemValue !== filterValue) return false;
+          }
+        }
+
+        return true;
+      });
+
+      this.render();
+    }
+
+    render() {
+      this.renderInfo();
+      this.renderItems();
+      this.renderPager();
+    }
+
+    renderInfo() {
+      const infoEl = this.container.querySelector(".searchable-list-info");
+      if (!infoEl) return;
+
+      if (this.filteredItems.length === 0) {
+        infoEl.innerHTML = `<div class="meta">${emptyMessage}</div>`;
+        return;
+      }
+
+      const totalPages = Math.ceil(this.filteredItems.length / this.pageSize);
+      const start = (this.currentPage - 1) * this.pageSize + 1;
+      const end = Math.min(this.currentPage * this.pageSize, this.filteredItems.length);
+
+      infoEl.innerHTML = `
+        <div class="meta">
+          <strong>${this.filteredItems.length}件</strong>が見つかりました
+          ${totalPages > 1 ? ` • ページ ${this.currentPage}/${totalPages}` : ""}
+          ${this.filteredItems.length > 0 ? ` • ${start}～${end}件表示` : ""}
+        </div>
+      `;
+    }
+
+    renderItems() {
+      const itemsEl = this.container.querySelector(".searchable-list-items");
+      if (!itemsEl) return;
+
+      if (this.filteredItems.length === 0) {
+        itemsEl.innerHTML = "";
+        return;
+      }
+
+      const start = (this.currentPage - 1) * this.pageSize;
+      const end = start + this.pageSize;
+      const pageItems = this.filteredItems.slice(start, end);
+
+      itemsEl.innerHTML = pageItems.map((item) => {
+        const content = renderItem(item);
+        return `<li>${content}</li>`;
+      }).join("");
+    }
+
+    renderPager() {
+      const pagerEl = this.container.querySelector(".searchable-list-pager");
+      if (!pagerEl) return;
+
+      const totalPages = Math.ceil(this.filteredItems.length / this.pageSize);
+      if (totalPages <= 1) {
+        pagerEl.innerHTML = "";
+        return;
+      }
+
+      const windowSize = 2;
+      const pages = [];
+      for (let p = Math.max(1, this.currentPage - windowSize); p <= Math.min(totalPages, this.currentPage + windowSize); p++) {
+        pages.push(p);
+      }
+
+      let html = `<nav class="pager" aria-label="ページ送り">`;
+      html += `<button class="btn" data-page="1" ${this.currentPage === 1 ? "disabled" : ""}>最初</button>`;
+      html += `<button class="btn" data-page="${Math.max(1, this.currentPage - 1)}" ${this.currentPage === 1 ? "disabled" : ""}>前へ</button>`;
+
+      html += `<div class="pager-pages">`;
+      if (pages[0] > 1) html += `<span class="meta">…</span>`;
+      pages.forEach((p) => {
+        html += `<button class="btn ${p === this.currentPage ? "btn-primary" : ""}" data-page="${p}" ${p === this.currentPage ? "aria-current='page'" : ""}>${p}</button>`;
+      });
+      if (pages[pages.length - 1] < totalPages) html += `<span class="meta">…</span>`;
+      html += `</div>`;
+
+      html += `<button class="btn" data-page="${Math.min(totalPages, this.currentPage + 1)}" ${this.currentPage === totalPages ? "disabled" : ""}>次へ</button>`;
+      html += `<button class="btn" data-page="${totalPages}" ${this.currentPage === totalPages ? "disabled" : ""}>最後</button>`;
+      html += `</nav>`;
+
+      pagerEl.innerHTML = html;
+
+      // Attach page click listeners
+      pagerEl.querySelectorAll("[data-page]").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const page = parseInt(e.target.dataset.page);
+          this.currentPage = page;
+          this.render();
+          // Scroll to top of list
+          this.container.querySelector(".searchable-list-items").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    }
+  }
+
+  // Initialize
+  window.SearchableList = SearchableList;
+  new SearchableList(componentId, items, pageSize, searchFields, filters);
+</script>
+
+<style>
+  .searchable-list {
+    width: 100%;
+  }
+
+  .searchable-list-controls {
+    margin-bottom: 16px;
+  }
+
+  .searchable-list-info {
+    margin-bottom: 16px;
+  }
+
+  .searchable-list-items {
+    margin-bottom: 24px;
+  }
+
+  .searchable-list-pager {
+    margin-top: 24px;
+  }
+
+  .pager-pages {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  [data-page][disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+</style>

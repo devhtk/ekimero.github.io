@@ -1,0 +1,145 @@
+---
+import SiteLayout from "../../../layouts/SiteLayout.astro";
+import Pager from "../../../components/Pager.astro";
+import { loadDataModel, type Line } from "../../../lib/data";
+
+export async function getStaticPaths() {
+  const PAGE_SIZE = 50;
+  const data = await loadDataModel();
+  const totalPages = Math.max(1, Math.ceil(data.melodies.length / PAGE_SIZE));
+  return Array.from({ length: totalPages }, (_, i) => ({
+    params: { page: String(i + 1) },
+  }));
+}
+
+const data = await loadDataModel();
+const companies = [...new Set(data.lines.map((l) => l.company))].sort((a, b) => a.localeCompare(b, "ja"));
+const linesByCompany = new Map<string, Line[]>();
+for (const l of data.lines) {
+  const arr = linesByCompany.get(l.company) || [];
+  arr.push(l);
+  linesByCompany.set(l.company, arr);
+}
+for (const [k, arr] of linesByCompany.entries()) {
+  arr.sort((a, b) => a.line.localeCompare(b.line, "ja"));
+  linesByCompany.set(k, arr);
+}
+
+const PAGE_SIZE = 50;
+const page = Math.max(1, Number(Astro.params.page || "1") || 1);
+const totalPages = Math.max(1, Math.ceil(data.melodies.length / PAGE_SIZE));
+const start = (page - 1) * PAGE_SIZE;
+const slice = data.melodies.slice(start, start + PAGE_SIZE);
+---
+<SiteLayout title={`メロディ一覧（${page}/${totalPages}）— どこでも駅メロ`}>
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <a href="/melodies">メロディから探す</a> &gt;
+    <span>ページ {page}</span>
+  </nav>
+
+  <div class="panel panel-pad">
+    <h1 class="h1">メロディから探す</h1>
+    <p class="muted" style="margin:8px 0 0 0;">同じメロディが複数の駅で使われることがあります。</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+      <input class="search" placeholder="メロディ名で検索…" data-search style="flex: 1; min-width: 200px;" />
+      <select class="btn" data-company style="padding: 10px;">
+        <option value="">全ての会社</option>
+        {companies.map((c) => (
+          <option value={c}>{c}</option>
+        ))}
+      </select>
+      <select class="btn" data-line style="padding: 10px;">
+        <option value="">全ての路線</option>
+      </select>
+    </div>
+    <div class="meta" style="margin-top:10px;">{data.melodies.length}件中 {start + 1}〜{Math.min(start + PAGE_SIZE, data.melodies.length)}件を表示</div>
+  </div>
+
+  <section class="panel" style="margin-top:16px;">
+    <ul class="list" data-list>
+      {slice.map((m) => {
+        const companyList = [...new Set(m.usages.map((u) => u.company))];
+        const lineList = [...new Set(m.usages.map((u) => u.line))];
+        return (
+        <li
+          data-item
+          data-company={companyList.join("|")}
+          data-line={lineList.join("|")}
+          data-text={m.name}
+        >
+          <div style="flex: 1;">
+            <a href={`/melodies/${m.name}`} style="font-weight:650;">{m.name}</a>
+            <div class="meta">使用 {m.usages.length}件 · 音源 {m.audioUrls.length}件</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-primary" type="button" data-play data-url={m.audioUrls[0]} data-title={m.name} data-subtitle={`${m.usages[0]?.company || ""} / ${m.usages[0]?.line || ""}`}>
+              ▶
+            </button>
+            <a class="btn" href={`/melodies/${m.name}`}>開く</a>
+          </div>
+        </li>
+      )})}
+    </ul>
+  </section>
+
+  <Pager page={page} totalPages={totalPages} basePath="/melodies" />
+
+  <script define:vars={{ allMelodies: data.melodies, linesByCompany: Object.fromEntries([...linesByCompany.entries()].map(([k, arr]) => [k, arr.map((l) => l.line)])) }}>
+    // @ts-nocheck
+    const input = /** @type {HTMLInputElement | null} */ (document.querySelector("[data-search]"));
+    const companySel = /** @type {HTMLSelectElement | null} */ (document.querySelector("[data-company]"));
+    const lineSel = /** @type {HTMLSelectElement | null} */ (document.querySelector("[data-line]"));
+    const items = Array.from(document.querySelectorAll("[data-item]"));
+
+    function populateLines() {
+      const company = companySel.value;
+      const lines = company ? (linesByCompany[company] || []) : [];
+      lineSel.innerHTML = `<option value="">全ての路線</option>` + lines.map((l) => `<option value="${l}">${l}</option>`).join("");
+    }
+
+    function applyFilters() {
+      const q = (input.value || "").trim().toLowerCase();
+      const company = companySel.value;
+      const line = lineSel.value;
+
+      // Filter all melodies
+      const filtered = allMelodies.filter((m) => {
+        const matchesSearch = !q || m.name.toLowerCase().includes(q);
+        const companyList = [...new Set(m.usages.map((u) => u.company))];
+        const lineList = [...new Set(m.usages.map((u) => u.line))];
+        const matchesCompany = !company || companyList.includes(company);
+        const matchesLine = !line || lineList.includes(line);
+        return matchesSearch && matchesCompany && matchesLine;
+      });
+
+      // If no results, hide all items
+      if (filtered.length === 0) {
+        for (const el of items) {
+          el.style.display = "none";
+        }
+        return;
+      }
+
+      // Show/hide items based on filters
+      for (const el of items) {
+        const t = (el.getAttribute("data-text") || "").toLowerCase();
+        const okQ = !q || t.includes(q);
+        const okC = !company || (el.getAttribute("data-company") || "").split("|").includes(company);
+        const okL = !line || (el.getAttribute("data-line") || "").split("|").includes(line);
+        el.style.display = okQ && okC && okL ? "flex" : "none";
+      }
+    }
+
+    populateLines();
+    applyFilters();
+
+    input?.addEventListener("input", applyFilters);
+    companySel?.addEventListener("change", () => {
+      populateLines();
+      applyFilters();
+    });
+    lineSel?.addEventListener("change", applyFilters);
+  </script>
+</SiteLayout>
+

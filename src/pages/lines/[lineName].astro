@@ -1,0 +1,110 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel, type Melody, type Station } from "../../lib/data";
+import { getLineImage, getLineLogo } from "../../lib/branding";
+import { stableEncode } from "../../lib/ids";
+
+export async function getStaticPaths() {
+  const data = await loadDataModel();
+  return data.lines.map((l) => ({ params: { lineName: l.line } }));
+}
+
+const { lineName } = Astro.params;
+const data = await loadDataModel();
+const line = data.lines.find((l) => l.line === lineName);
+if (!line) throw new Error(`Line not found: ${lineName}`);
+
+// Filter out unused melodies unless this line is "未使用"
+const relevantUsages = lineName === "未使用"
+  ? line.usages
+  : line.usages.filter((u) => !(u.station === "未使用" || u.line === "未使用"));
+
+const stations = line.stationIds
+  .map((sid) => data.stations.find((s) => s.id === sid))
+  .filter((s): s is Station => Boolean(s));
+
+const melodiesUsed = new Map();
+for (const u of relevantUsages) {
+  const key = u.melodyId;
+  melodiesUsed.set(key, (melodiesUsed.get(key) || 0) + 1);
+}
+const melodyEntries: { melody: Melody; count: number }[] = [...melodiesUsed.entries()]
+  .map(([melodyId, count]) => {
+    const melody = data.melodies.find((m) => m.id === melodyId);
+    return melody ? { melody, count: Number(count) } : null;
+  })
+  .filter((x): x is { melody: Melody; count: number } => Boolean(x))
+  .sort((a, b) => b.count - a.count);
+
+const lineImage = getLineImage(line.line);
+const lineLogo = getLineLogo(line.line);
+---
+<SiteLayout title={`${line.line} — どこでも駅メロ`}>
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <a href="/lines">路線</a> &gt; 
+    <span>{line.line}</span>
+  </nav>
+
+  <!-- Hero Section -->
+  <div class="panel hero" style="position:relative; overflow:hidden; min-height:200px; display:flex; align-items:center; justify-content:center; margin-bottom: 24px; padding: 0;">
+    {lineImage && (
+      <img src={lineImage} alt={line.line} style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; filter: brightness(0.5) blur(2px);" />
+    )}
+    <div style="position:absolute; inset:0; background: rgba(0,0,0,0.3); z-index:1;"></div>
+    <div style="position:relative; z-index:2; padding:40px 24px; text-align:center; color: white;">
+      <div style="display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom: 12px;">
+        {lineLogo && (
+          <img src={lineLogo} alt={line.line} style="height:48px; width:auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" />
+        )}
+        <h1 class="h1" style="margin:0; text-shadow:0 2px 10px rgba(0,0,0,0.8);">{line.line}</h1>
+      </div>
+      <div class="meta" style="color:rgba(255,255,255,0.9); font-weight: 500; font-size: 1.1em;">
+        <a href={`/companies/${stableEncode(line.company)}`} style="color:rgba(255,255,255,0.9); font-weight: 500;">
+          {line.company}
+        </a> ・ 駅 {stations.length}件 ・ 使用 {relevantUsages.length}件
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="panel col-6">
+      <div class="panel-pad" style="border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background: rgba(0,0,0,0.02);">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">駅一覧</h2>
+        <a class="btn" href="/stations" style="font-size: 12px; padding: 4px 12px;">全駅を見る</a>
+      </div>
+      <ul class="list">
+        {stations.map((s) => (
+          <li>
+            <div style="flex: 1;">
+              <a href={`/stations/${stableEncode(s.station)}`} style="font-weight:600; color: inherit;">{s.station}</a>
+              <div class="meta" style="margin-top:2px;">使用 {line.usages.filter((u) => u.stationId === s.id).length}件</div>
+            </div>
+            <a class="btn" href={`/stations/${stableEncode(s.station)}`} style="font-size: 12px; padding: 4px 10px;">開く</a>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="panel col-6">
+      <div class="panel-pad" style="border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background: rgba(0,0,0,0.02);">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">メロディー一覧</h2>
+        <a class="btn" href="/melodies" style="font-size: 12px; padding: 4px 12px;">全メロディを見る</a>
+      </div>
+      <ul class="list">
+        {melodyEntries.slice(0, 20).map(({ melody, count }) => (
+          <li>
+            <div style="flex: 1;">
+              <a href={`/melodies/${stableEncode(melody.name)}`} style="font-weight:600; color: inherit;">{melody.name}</a>
+              <div class="meta" style="margin-top:2px;">使用 {count}件</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn btn-primary" data-play data-url={melody.audioUrls[0]} data-title={melody.name} data-subtitle={`${line.company} / ${line.line}`} style="padding: 4px 8px; font-size: 14px; font-weight: 600; min-width: auto;" title="再生">▶</button>
+              <a class="btn" href={`/melodies/${stableEncode(melody.name)}`} style="font-size: 12px; padding: 4px 10px;">開く</a>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  </div>
+</SiteLayout>

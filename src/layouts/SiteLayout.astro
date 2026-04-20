@@ -1,0 +1,112 @@
+---
+type Props = {
+  title: string;
+  description?: string;
+  searchQuery?: string;
+};
+
+const { title, description, searchQuery } = Astro.props;
+const firebaseConfig = {
+  apiKey: import.meta.env.PUBLIC_FIREBASE_API_KEY || "AIzaSyBrgf00OFxksjZuFOQxgB1qUjZmLSG7yqk",
+  authDomain: import.meta.env.PUBLIC_FIREBASE_AUTH_DOMAIN || "dokodemo-ekimero.firebaseapp.com",
+  databaseURL:
+    import.meta.env.PUBLIC_FIREBASE_DATABASE_URL ||
+    "https://dokodemo-ekimero-default-rtdb.firebaseio.com",
+  projectId: import.meta.env.PUBLIC_FIREBASE_PROJECT_ID || "dokodemo-ekimero",
+  storageBucket:
+    import.meta.env.PUBLIC_FIREBASE_STORAGE_BUCKET || "dokodemo-ekimero.firebasestorage.app",
+  messagingSenderId: import.meta.env.PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "189766315545",
+  appId: import.meta.env.PUBLIC_FIREBASE_APP_ID || "1:189766315545:web:e88fb50dc039f7d2f28488",
+  measurementId: import.meta.env.PUBLIC_FIREBASE_MEASUREMENT_ID || "G-EPCBNCPN4F",
+};
+---
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{title}</title>
+    {description ? <meta name="description" content={description} /> : null}
+    <link rel="icon" href="/images/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/images/favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/images/favicon-16x16.png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/styles/global.css" />
+    <script is:inline>
+      (function() {
+        const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <a class="brand-link" href="/" aria-label="どこでも駅メロ">
+            <img class="brand-logo" src="/images/logo.png" alt="どこでも駅メロ" />
+            <span class="brand-title">どこでも駅メロ</span>
+          </a>
+        </div>
+        <form class="top-search" action="/search" method="get" role="search">
+          <input
+            class="search"
+            type="search"
+            name="q"
+            value={searchQuery ?? ""}
+            placeholder="駅名 / 路線 / メロディ名で検索…"
+            aria-label="検索"
+          />
+        </form>
+        <nav class="nav" aria-label="Primary" style="align-items: center;">
+          <a href="/search">検索</a>
+          <a href="/companies" class="hide-mobile">会社別</a>
+          <a href="/lines">路線</a>
+          <a href="/stations" class="hide-mobile">駅</a>
+          <a href="/melodies" class="hide-mobile">メロディ</a>
+          <a href="/unused">消滅・未使用</a>
+          <button id="theme-toggle" class="btn" style="padding: 4px 8px; font-size: 16px; margin-left: 4px;" aria-label="テーマ切り替え">
+            <span class="theme-icon">🌓</span>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      <slot />
+    </main>
+
+    <script is:inline>
+      const themeToggle = document.getElementById('theme-toggle');
+      if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+          const currentTheme = document.documentElement.getAttribute('data-theme');
+          const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          localStorage.setItem('theme', newTheme);
+        });
+      }
+    </script>
+    <script is:inline define:vars={{ firebaseConfig }}>
+      window.__EKIMERO_FIREBASE_CONFIG = firebaseConfig;
+    </script>
+    <footer class="site-footer">
+      <div class="container" style="padding-top:0;">
+        <div class="meta" style="font-size:0.9em;">
+          <a href="/credits" style="text-decoration:underline; color:inherit;">素材提供・利用規約</a> 
+          鉄道モバイル: <a href="https://www.te2do.jp" target="_blank" style="text-decoration:underline;">https://www.te2do.jp</a>
+          <br>
+          どこでも駅メロ © {new Date().getFullYear()} 当サイトは非営利目的で運営されています。収益化は行っていません。
+          
+
+
+        </div>
+      </div>
+    </footer>
+
+    <script is:inline src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script is:inline src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script is:inline src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script type="module" src="/scripts/inline-player.js"></script>
+  </body>
+</html>

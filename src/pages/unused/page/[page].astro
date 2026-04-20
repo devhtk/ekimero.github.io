@@ -1,0 +1,75 @@
+---
+import SiteLayout from "../../../layouts/SiteLayout.astro";
+import Pager from "../../../components/Pager.astro";
+import { loadDataModel } from "../../../lib/data";
+
+export async function getStaticPaths() {
+  const PAGE_SIZE = 50;
+  const data = await loadDataModel();
+  const unusedMelodies = data.melodies.filter((m) =>
+    m.usages.some((u) => u.station === "未使用")
+  );
+  const totalPages = Math.max(1, Math.ceil(unusedMelodies.length / PAGE_SIZE));
+  return Array.from({ length: totalPages }, (_, i) => ({
+    params: { page: String(i + 1) },
+  }));
+}
+
+const data = await loadDataModel();
+const unusedMelodies = data.melodies.filter((m) =>
+  m.usages.some((u) => u.station === "未使用")
+);
+unusedMelodies.sort((a, b) => a.name.localeCompare(b.name, "ja"));
+
+const PAGE_SIZE = 50;
+const page = Math.max(1, Number(Astro.params.page || "1") || 1);
+const totalPages = Math.max(1, Math.ceil(unusedMelodies.length / PAGE_SIZE));
+const start = (page - 1) * PAGE_SIZE;
+const slice = unusedMelodies.slice(start, start + PAGE_SIZE);
+---
+<SiteLayout title={`未使用（${page}/${totalPages}）— どこでも駅メロ`}>
+  <div class="panel panel-pad">
+    <h1 class="h1">未使用</h1>
+    <p class="muted" style="margin:8px 0 0 0;">
+      現在、駅メロとして使われていない（または廃止された）メロディです。
+    </p>
+    <div style="margin-top:12px;">
+      <input class="search" placeholder="メロディ名で検索…" data-search />
+    </div>
+    <div class="meta" style="margin-top:10px;">{unusedMelodies.length}件中 {start + 1}〜{Math.min(start + PAGE_SIZE, unusedMelodies.length)}件を表示</div>
+  </div>
+
+  <section class="panel" style="margin-top:16px;">
+    <ul class="list">
+      {slice.map((m) => (
+        <li data-item data-text={m.name}>
+          <div>
+            <a href={`/未使用/${m.name}`} style="font-weight:650;">{m.name}</a>
+            <div class="meta">音源 {m.audioUrls.length}件</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-primary" type="button" data-play data-url={m.audioUrls[0]} data-title={m.name} data-subtitle="未使用">
+              ▶
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <Pager page={page} totalPages={totalPages} basePath="/unused" />
+
+  <script>
+    // @ts-nocheck
+    const input = /** @type {HTMLInputElement | null} */ (document.querySelector("[data-search]"));
+    const items = Array.from(document.querySelectorAll("[data-item]"));
+    input?.addEventListener("input", () => {
+      const q = (input.value || "").trim().toLowerCase();
+      for (const el of items) {
+        const t = (el.getAttribute("data-text") || "").toLowerCase();
+        el.style.display = !q || t.includes(q) ? "flex" : "none";
+      }
+    });
+  </script>
+</SiteLayout>
+

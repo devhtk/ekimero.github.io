@@ -1,0 +1,163 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+// 1. Get query from URL (Server-side)
+const url = new URL(Astro.request.url);
+const q = (url.searchParams.get("q") ?? "").trim();
+---
+
+<SiteLayout title="検索 — どこでも駅メロ" searchQuery={q}>
+  <div class="panel panel-pad">
+    <h1 class="h1">検索</h1>
+    <p class="muted" style="margin:8px 0 0 0;">
+      駅名・路線名・メロディ名で横断検索できます。
+    </p>
+
+    <form id="local-search-form" action="/search" method="get" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+      <input 
+        id="search-page-input"
+        class="search" 
+        type="search" 
+        name="q" 
+        value={q} 
+        placeholder="例: 山手線 / 東京 / 春 標準" 
+        aria-label="検索" 
+      />
+      <button id="search-submit-btn" class="btn btn-primary" type="submit">検索</button>
+    </form>
+    
+    <div style="margin-top:12px;">
+      <span class="meta" id="status-text">読み込み中...</span>
+    </div>
+  </div>
+
+  <div id="results-container" style="display: none;">
+    <details open class="panel" style="margin-top:16px;">
+      <summary style="padding:12px; cursor:pointer; font-weight:bold; border-bottom:1px solid var(--border); list-style:none; display:flex; justify-content:space-between; align-items:center;">
+        <span>🎵 メロディ</span>
+        <span data-count="melodies" class="meta"></span>
+      </summary>
+      <ul class="list" data-results="melodies"></ul>
+    </details>
+
+    <details open class="panel" style="margin-top:16px;">
+      <summary style="padding:12px; cursor:pointer; font-weight:bold; border-bottom:1px solid var(--border); list-style:none; display:flex; justify-content:space-between; align-items:center;">
+        <span>🚉 駅</span>
+        <span data-count="stations" class="meta"></span>
+      </summary>
+      <ul class="list" data-results="stations"></ul>
+    </details>
+
+    <details open class="panel" style="margin-top:16px;">
+      <summary style="padding:12px; cursor:pointer; font-weight:bold; border-bottom:1px solid var(--border); list-style:none; display:flex; justify-content:space-between; align-items:center;">
+        <span>🛤️ 路線</span>
+        <span data-count="lines" class="meta"></span>
+      </summary>
+      <ul class="list" data-results="lines"></ul>
+    </details>
+  </div>
+
+  <script is:inline>
+    (function() {
+      let searchIndex = null;
+      
+      function norm(s) {
+        return (s || "").toString().normalize("NFKC").toLowerCase().replace(/\s+/g, "");
+      }
+
+      function el(html) {
+        const t = document.createElement("template");
+        t.innerHTML = html.trim();
+        return t.content.firstElementChild;
+      }
+
+      function renderRow(type, item) {
+        let inner = '';
+        if (type === 'stations') {
+          inner = `<div><a href="/stations/${item.station}" style="font-weight:650;">${item.station}</a><div class="meta">${item.company} · ${item.line}</div></div><a class="btn" href="/stations/${item.station}">開く</a>`;
+        } else if (type === 'lines') {
+          inner = `<div><a href="/lines/${item.line}" style="font-weight:650;">${item.line}</a><div class="meta">${item.company} · 駅 ${item.stationCount}件</div></div><a class="btn" href="/lines/${item.line}">開く</a>`;
+        } else {
+          const playBtn = item.audioUrl 
+            ? `<button class="btn btn-primary" type="button" data-play data-url="${item.audioUrl}" data-title="${item.name}" data-subtitle="検索結果">▶</button>` 
+            : `<span class="badge">音源なし</span>`;
+          inner = `<div><a href="/melodies/${item.name}" style="font-weight:650;">${item.name}</a><div class="meta">使用 ${item.useCount}件</div></div><div style="display:flex;gap:8px;">${playBtn}<a class="btn" href="/melodies/${item.name}">開く</a></div>`;
+        }
+        return el(`<li style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border);">${inner}</li>`);
+      }
+
+      function performSearch(q) {
+        const statusText = document.getElementById("status-text");
+        const resultsContainer = document.getElementById("results-container");
+
+        if (!searchIndex) {
+          return;
+        }
+
+        // Always show container when we have search index, even if query is empty
+        resultsContainer.style.display = "block";
+        
+        if (!q) {
+          statusText.textContent = "検索キーワードを入力してください";
+          return;
+        }
+
+        statusText.textContent = `「${q}」の検索結果`;
+
+        const nQuery = norm(q);
+        ["melodies", "stations", "lines"].forEach(cat => {
+          const list = searchIndex[cat] || [];
+          const results = list.filter(item => norm(item.text).includes(nQuery)).slice(0, 50);
+          const listEl = document.querySelector(`[data-results="${cat}"]`);
+          const countEl = document.querySelector(`[data-count="${cat}"]`);
+          if (listEl) {
+            listEl.innerHTML = results.length ? "" : '<li class="meta" style="padding:12px;">なし</li>';
+            results.forEach(item => listEl.appendChild(renderRow(cat, item)));
+          }
+          if (countEl) countEl.textContent = `(${results.length})`;
+        });
+      }
+
+      // Initial Fetch
+      fetch("/search-index.json")
+        .then(res => res.json())
+        .then(data => {
+          searchIndex = data;
+          document.getElementById("status-text").textContent = "準備完了";
+          
+          // Only perform search if there's a query parameter in the URL
+          const params = new URLSearchParams(window.location.search);
+          const queryFromURL = params.get('q') || "";
+          
+          if (queryFromURL) {
+            const input = document.getElementById("search-page-input");
+            if (input) input.value = queryFromURL;
+            performSearch(queryFromURL);
+          }
+        });
+
+      // Form submit listener - redirect with query parameter
+      const localForm = document.getElementById("local-search-form");
+      if (localForm) {
+        localForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const input = document.getElementById("search-page-input");
+          const q = (input ? input.value : "").trim();
+          
+          // Redirect to /search?q=keyword
+          if (q) {
+            window.location.href = `/search?q=${encodeURIComponent(q)}`;
+          }
+        });
+      }
+
+      // Astro View Transitions Support
+      document.addEventListener('astro:after-swap', () => {
+        const params = new URLSearchParams(window.location.search);
+        const queryFromURL = params.get('q') || "";
+        if (queryFromURL) {
+          performSearch(queryFromURL);
+        }
+      });
+    })();
+  </script>
+</SiteLayout>

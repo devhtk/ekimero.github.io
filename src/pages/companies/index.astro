@@ -1,0 +1,47 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel } from "../../lib/data";
+import { companyLogo } from "../../lib/branding";
+
+const data = await loadDataModel();
+const map = new Map<string, { lineSet: Set<string>; stationSet: Set<string>; usageCount: number }>();
+for (const u of data.usages) {
+  const cur = map.get(u.company) ?? { lineSet: new Set<string>(), stationSet: new Set<string>(), usageCount: 0 };
+  cur.lineSet.add(u.lineId);
+  cur.stationSet.add(u.stationId);
+  cur.usageCount += 1;
+  map.set(u.company, cur);
+}
+const companies = [...map.entries()]
+  .map(([name, v]) => ({
+    name,
+    lineCount: v.lineSet.size,
+    stationCount: v.stationSet.size,
+    usageCount: v.usageCount,
+    logo: companyLogo(name),
+  }))
+  .sort((a, b) => b.usageCount - a.usageCount);
+---
+<SiteLayout title="会社別 — どこでも駅メロ">
+  <div class="panel panel-pad">
+    <h1 class="h1">会社別</h1>
+    <p class="muted" style="margin-top:8px;">鉄道会社ごとに、路線・駅・メロディをまとめて確認できます。</p>
+  </div>
+
+  <section class="panel" style="margin-top:16px;">
+    <ul class="list">
+      {companies.map((c) => (
+        <li>
+          <div class="company-head">
+            {c.logo ? <img class="company-logo" src={c.logo} alt={c.name} /> : <div class="company-logo"></div>}
+            <div>
+              <a href={`/companies/${c.name}`} style="font-weight:700;">{c.name}</a>
+              <div class="meta">路線 {c.lineCount}件 ・ 駅 {c.stationCount}件 ・ 使用 {c.usageCount}件</div>
+            </div>
+          </div>
+          <a class="btn" href={`/companies/${c.name}`}>開く</a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</SiteLayout>

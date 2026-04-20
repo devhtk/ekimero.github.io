@@ -1,0 +1,119 @@
+---
+import SiteLayout from "../../../layouts/SiteLayout.astro";
+import Pager from "../../../components/Pager.astro";
+import { loadDataModel, type Line } from "../../../lib/data";
+import { getLineLogo } from "../../../lib/branding";
+import { stableEncode } from "../../../lib/ids";
+
+export async function getStaticPaths() {
+  const PAGE_SIZE = 50;
+  const data = await loadDataModel();
+  const totalPages = Math.max(1, Math.ceil(data.lines.length / PAGE_SIZE));
+  return Array.from({ length: totalPages }, (_, i) => ({
+    params: { page: String(i + 1) },
+  }));
+}
+
+const data = await loadDataModel();
+const companies = [...new Set(data.lines.map((l) => l.company))].sort((a, b) => a.localeCompare(b, "ja"));
+const linesByCompany = new Map<string, Line[]>();
+for (const l of data.lines) {
+  const arr = linesByCompany.get(l.company) || [];
+  arr.push(l);
+  linesByCompany.set(l.company, arr);
+}
+for (const [k, arr] of linesByCompany.entries()) {
+  arr.sort((a, b) => a.line.localeCompare(b.line, "ja"));
+  linesByCompany.set(k, arr);
+}
+
+const PAGE_SIZE = 50;
+const page = Math.max(1, Number(Astro.params.page || "1") || 1);
+const totalPages = Math.max(1, Math.ceil(data.lines.length / PAGE_SIZE));
+const start = (page - 1) * PAGE_SIZE;
+const slice = data.lines.slice(start, start + PAGE_SIZE);
+---
+<SiteLayout title={`路線一覧（${page}/${totalPages}）— どこでも駅メロ`}>
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <a href="/lines">路線から探す</a> &gt;
+    <span>ページ {page}</span>
+  </nav>
+
+  <div class="panel panel-pad">
+    <h1 class="h1">路線一覧</h1>
+    <p class="muted" style="margin:8px 0 0 0;">路線ごとに、駅とメロディの使用状況を見られます。</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+      <input class="search" placeholder="路線名で検索…" data-search style="flex: 1; min-width: 200px;" />
+      <select class="btn" data-company style="padding: 10px;">
+        <option value="">全ての会社</option>
+        {companies.map((c) => (
+          <option value={c}>{c}</option>
+        ))}
+      </select>
+    </div>
+    <div class="meta" style="margin-top:10px;">{data.lines.length}件中 {start + 1}〜{Math.min(start + PAGE_SIZE, data.lines.length)}件を表示</div>
+  </div>
+
+  <section class="panel" style="margin-top:16px;">
+    <ul class="list" data-list>
+      {slice.map((l) => (
+        <li data-item data-company={l.company}>
+          <div style="flex: 1;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <img src={getLineLogo(l.line)} alt="" style="height:20px; width:auto;" onerror="this.style.display='none'" />
+              <a href={`/lines/${stableEncode(l.line)}`} style="font-weight:600; font-size: 1em; color: inherit;">
+                {l.line}
+              </a>
+            </div>
+            <div class="meta" style="margin-top: 4px;">{l.company} · 駅 {l.stationIds.length}件 · 使用 {l.usages.length}件</div>
+          </div>
+          <a class="btn" href={`/lines/${stableEncode(l.line)}`} style="font-size: 12px; padding: 6px 16px;">開く</a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <Pager page={page} totalPages={totalPages} basePath="/lines" />
+
+  <script define:vars={{ allLines: data.lines }}>
+    // @ts-nocheck
+    const input = /** @type {HTMLInputElement | null} */ (document.querySelector("[data-search]"));
+    const companySel = /** @type {HTMLSelectElement | null} */ (document.querySelector("[data-company]"));
+    const items = Array.from(document.querySelectorAll("[data-item]"));
+
+    function applyFilters() {
+      const q = (input.value || "").trim().toLowerCase();
+      const company = companySel.value;
+
+      // Filter all lines
+      const filtered = allLines.filter((l) => {
+        const matchesSearch = !q || l.line.toLowerCase().includes(q);
+        const matchesCompany = !company || l.company === company;
+        return matchesSearch && matchesCompany;
+      });
+
+      // If no results on current page view, show message
+      if (filtered.length === 0) {
+        for (const el of items) {
+          el.style.display = "none";
+        }
+        return;
+      }
+
+      // Show/hide items based on filters
+      for (const el of items) {
+        const lineText = (el.querySelector("a")?.textContent || "").toLowerCase();
+        const companyText = el.getAttribute("data-company") || "";
+        const okQ = !q || lineText.includes(q);
+        const okC = !company || companyText === company;
+        el.style.display = okQ && okC ? "flex" : "none";
+      }
+    }
+
+    applyFilters();
+    input?.addEventListener("input", applyFilters);
+    companySel?.addEventListener("change", applyFilters);
+  </script>
+</SiteLayout>
+

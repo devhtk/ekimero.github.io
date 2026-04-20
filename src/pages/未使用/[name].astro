@@ -1,0 +1,46 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel } from "../../lib/data";
+import { getMelodyImage } from "../../lib/branding";
+
+export async function getStaticPaths() {
+  const data = await loadDataModel();
+  const unusedMelodies = data.melodies.filter((m) =>
+    m.usages.some((u) => u.station === "未使用")
+  );
+  return unusedMelodies.map((m) => ({ params: { name: m.name } }));
+}
+
+const { name } = Astro.params;
+const data = await loadDataModel();
+const melody = data.melodies.find((m) => m.name === name);
+if (!melody) throw new Error(`Melody not found: ${name}`);
+
+const melodyImage = getMelodyImage(melody.name);
+---
+<SiteLayout title={`${melody.name}（未使用）— どこでも駅メロ`}>
+  <!-- Hero Section with Player -->
+  <div class="hero" style="position:relative;margin:-24px -24px 24px -24px;background:rgba(0,0,0,0.5);overflow:hidden;border-radius:16px;padding-top:24px;margin-top:0;">
+    {melodyImage && (
+      <img src={melodyImage} alt={melody.name} style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;" />
+    )}
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.3);z-index:1;"></div>
+    <div class="panel-pad" style="position:relative;z-index:2;padding:40px 24px;text-align:center;">
+      <h1 class="h1" style="margin:0;color:white;text-shadow:0 2px 8px rgba(0,0,0,0.5);">{melody.name}</h1>
+      <div class="meta" style="color:rgba(255,255,255,0.8);margin-top:8px;">未使用</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px;">
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-play
+          data-url={melody.audioUrls[0]}
+          data-title={melody.name}
+          data-subtitle="未使用"
+          style="background:#fff;color:#000;font-weight:650;"
+        >
+          ▶
+        </button>
+      </div>
+    </div>
+  </div>
+</SiteLayout>

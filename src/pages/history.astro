@@ -1,0 +1,157 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const historyData = [
+  {
+    date: "2026/04/19",
+    updates: [
+      { title: "サイトをリニューアルしました！", description: "「どこでも駅メロ」のサイトデザインと構成を全面的にアップデートしました。より使いやすく、よりスムーズにメロディーを楽しめるよう構成を見直しています。リニューアル直後のため、一部表示の崩れやバグが残っている可能性がありますが、順次改善していきます。なお、最新のメロディー使用状況については、来週中を目処に更新する予定です。これからもどうぞよろしくお願いします。" }
+    ]
+  },
+
+  {
+    date: "2026/01/24",
+    updates: [
+      { title: "メロディー使用状況更新", description: "八王子支社の更新です。" }
+    ]
+  },
+  {
+    date: "2025/12/24",
+    updates: [
+      { title: "発車メロディー更新", description: "成田線のIKST化です。", stations: ["木下", "安食", "東我孫子", "湖北", "小林", "新木", "布佐"] },
+      { title: "音声追加", description: "新しいIKSTなどの多数の発車メロディーの音声を追加いたしました。" },
+      { title: "バグ修正", description: "多数のバグを修正しました。" },
+      { title: "発車メロディー更新", description: "千葉支社のIKST化です。", stations: ["四街道", "安房鴨川", "誉田", "千倉", "袖ヶ浦", "長浦", "姉ヶ崎"] }
+    ]
+  },
+  {
+    date: "2025/12/04",
+    updates: [
+      { title: "発車メロディー更新", description: "長野原草津口駅がIKST化されました。", stations: ["長野原草津口"] }
+    ]
+  },
+  {
+    date: "2025/11/20",
+    updates: [
+      { title: "発車メロディー更新", description: "松本駅、千葉支社の駅の更新です。", stations: ["松本", "成田", "空港第2ビル", "成田空港", "大原", "勝浦"] }
+    ]
+  },
+  {
+    date: "2025/10/25",
+    updates: [
+      { title: "メロディーページ追加！", description: "各発車メロディーごとに専用ページを公開しました。どの路線・駅で使用されているかを一覧で確認ができます。" }
+    ]
+  },
+  {
+    date: "2025/10/23",
+    updates: [
+      { title: "ホームページ変更", description: "ホームページに多数の新セクションを足しました。なお、「駅メロ統計ダッシュボード」は非公開にさせてもらいます。" },
+      { title: "発車メロディー更新", description: "千葉支社・高崎支社の更新です。多数のテイチク製のメロディーがIKST化されました。", stations: ["宇都宮", "小山", "本千葉", "鎌取", "浜野", "銚子", "佐原", "鹿島神宮", "上総一ノ宮", "八積", "茂原", "大網", "土気", "本納", "榎戸", "八街", "成東", "佐倉"] }
+    ]
+  },
+  {
+    date: "2025/09/27",
+    updates: [
+      { title: "植田 | メロディー更新", description: "水戸支社のIKST化が続きます。", stations: ["植田"] }
+    ]
+  },
+  {
+    date: "2025/09/20",
+    updates: [
+      { title: "メロディー音源追加", description: "メロディーの音源を多数追加いたしました。" },
+      { title: "常磐線 | メロディー更新", description: "新メロディー登場！水戸駅のご当地メロディーが消滅。", stations: ["水戸", "赤塚"] }
+    ]
+  },
+  {
+    date: "2025/09/19",
+    updates: [
+      { title: "発車メロディー更新", description: "首都圏12-2・3 が登場", stations: ["藤代", "ひたちの牛久", "久喜", "高浜", "羽鳥", "内原", "勝田", "東海", "佐和"] }
+    ]
+  },
+  {
+    date: "2025/09/17",
+    updates: [
+      { title: "未使用の発車メロディーページ追加", description: "消滅した・未使用の発車メロディー一覧のページを作成いたしました。" }
+    ]
+  },
+  {
+    date: "2025/09/13",
+    updates: [
+      { title: "雀宮駅 | 発車メロディー変更", description: "シンコペーションが消滅いたしました。", stations: ["雀宮"] }
+    ]
+  },
+  {
+    date: "2025/09/02",
+    updates: [
+      { title: "東京メトロ発車メロディー追加", description: "東西線以外の東京メトロの発車メロディーを追加いたしました！" },
+      { title: "バグ修正", description: "多数のリンクのバグを修正いたしました。" }
+    ]
+  },
+  {
+    date: "2025/08/30",
+    updates: [
+      { title: "変更履歴追加・ホームページアップデート", description: "変更履歴ページ・セクションを追加いたしました！" }
+    ]
+  },
+  {
+    date: "2025/08/26",
+    updates: [
+      { title: "データ修正", description: "多数の誤りを修正し、統計データダッシュボードを再公開いたしました。" }
+    ]
+  },
+  {
+    date: "2025/08/25",
+    updates: [
+      { title: "宇都宮線メロディー変更", description: "宇都宮線の11駅がIKST化されました。", stations: ["東大宮", "白岡", "新白岡", "東鷲宮", "栗橋", "古河", "小山", "小金井", "自治医大", "石橋", "宇都宮"] }
+    ]
+  },
+  {
+    date: "2025/08/19",
+    updates: [
+      { title: "多路線対応・UIアップデート", description: "複数の新路線に対応し、ユーザーインターフェースを改善しました。" }
+    ]
+  }
+];
+---
+
+<SiteLayout title="更新履歴 — どこでも駅メロ" description="どこでも駅メロの更新内容、機能追加、データ更新の履歴です。">
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt;
+    <span>更新履歴</span>
+  </nav>
+
+  <div class="panel panel-pad">
+    <h1 class="h1">更新履歴</h1>
+    <p class="muted" style="margin-top:8px;">
+      どこでも駅メロの変更ログ・アップデート情報
+    </p>
+  </div>
+
+  <div style="margin-top: 24px;">
+    {historyData.map((day) => (
+      <div style="margin-bottom: 32px;">
+        <div class="meta" style="font-weight: 700; font-size: 1.1em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 8px; height: 8px; background: var(--accent); border-radius: 50%;"></div>
+          {day.date}
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          {day.updates.map((update) => (
+            <section class="panel panel-pad">
+              <h2 style="font-size: 1.1em; font-weight: 700; margin: 0 0 8px 0; color: var(--text);">{update.title}</h2>
+              <p style="color: var(--muted); margin: 0; line-height: 1.6;">{update.description}</p>
+              
+              {update.stations && (
+                <div style="margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap;">
+                  {update.stations.map((s) => (
+                    <span class="badge" style="background: var(--bg);">{s}</span>
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+</SiteLayout>

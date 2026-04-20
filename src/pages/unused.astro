@@ -1,0 +1,88 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import { loadDataModel } from "../lib/data";
+import { getLineImage, getLineLogo } from "../lib/branding";
+import { stableEncode } from "../lib/ids";
+import Pager from "../components/Pager.astro";
+
+const data = await loadDataModel();
+
+// Find melodies with "未使用" station or line
+const unusedMelodies = data.melodies.filter((m) =>
+  m.usages.some((u) => u.station === "未使用" || u.line === "未使用")
+);
+unusedMelodies.sort((a, b) => a.name.localeCompare(b.name, "ja"));
+
+const PAGE_SIZE = 50;
+const page = 1;
+const totalPages = Math.max(1, Math.ceil(unusedMelodies.length / PAGE_SIZE));
+const slice = unusedMelodies.slice(0, PAGE_SIZE);
+
+const lineImage = getLineImage("未使用");
+const lineLogo = getLineLogo("未使用");
+---
+<SiteLayout title="未使用・消滅メロディ — どこでも駅メロ">
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <span>未使用・消滅</span>
+  </nav>
+
+
+  <div class="panel panel-pad">
+    <h1 class="h1">未使用・消滅メロディ</h1>
+    <p class="muted" style="margin:8px 0 0 0;">
+      現在使用されていない、または廃止されたメロディの一覧です。
+    </p>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input class="search" placeholder="メロディ名で検索…" data-search style="flex: 1; min-width: 200px;" />
+    </div>
+    <div class="meta" style="margin-top:12px;">{unusedMelodies.length}種類のメロディが登録されています</div>
+  </div>
+
+  <section class="panel" style="margin-top:24px;">
+    <ul class="list">
+      {slice.map((m) => (
+        <li data-item data-text={m.name}>
+          <div style="flex: 1;">
+            <a href={`/unused/${stableEncode(m.name)}`} style="font-weight:600; font-size: 1em; color: inherit;">
+              {m.name}
+            </a>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            {m.audioUrls[0] && (
+              <button
+                class="btn btn-primary"
+                type="button"
+                data-play
+                data-url={m.audioUrls[0]}
+                data-title={m.name}
+                data-subtitle="未使用・消滅"
+                style="padding: 4px 8px; font-size: 14px; font-weight: 600; min-width: auto;"
+                title="再生"
+              >
+                ▶
+              </button>
+            )}
+            <a class="btn" href={`/unused/${stableEncode(m.name)}`} style="font-size: 12px; padding: 6px 16px;">開く</a>
+          </div>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <Pager page={page} totalPages={totalPages} basePath="/unused" />
+
+  <script>
+    // @ts-nocheck
+    const input = /** @type {HTMLInputElement | null} */ (document.querySelector("[data-search]"));
+    const items = Array.from(document.querySelectorAll("[data-item]"));
+    input?.addEventListener("input", () => {
+      const q = (input.value || "").trim().toLowerCase();
+      for (const el of items) {
+        const t = (el.getAttribute("data-text") || "").toLowerCase();
+        el.style.display = !q || t.includes(q) ? "flex" : "none";
+      }
+    });
+  </script>
+</SiteLayout>
+

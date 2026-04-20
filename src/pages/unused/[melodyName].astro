@@ -1,0 +1,84 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel } from "../../lib/data";
+import { getLineImage } from "../../lib/branding";
+import { stableEncode } from "../../lib/ids";
+
+export async function getStaticPaths() {
+  const data = await loadDataModel();
+  const unusedMelodies = data.melodies.filter((m) =>
+    m.usages.some((u) => u.station === "未使用" || u.line === "未使用")
+  );
+  return unusedMelodies.map((m) => ({ params: { melodyName: m.name } }));
+}
+
+const { melodyName } = Astro.params;
+const data = await loadDataModel();
+const melody = data.melodies.find((m) => m.name === melodyName);
+if (!melody) throw new Error(`Melody not found: ${melodyName}`);
+
+// Filter to only unused/discontinued usages
+const unusedUsages = melody.usages.filter((u) => u.station === "未使用" || u.line === "未使用");
+if (!unusedUsages.length) throw new Error(`Melody has no unused usages: ${melodyName}`);
+
+const lineImage = getLineImage("未使用");
+---
+<SiteLayout title={`${melody.name} — どこでも駅メロ`}>
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <a href="/unused">未使用・消滅</a> &gt; 
+    <span>{melody.name}</span>
+  </nav>
+
+  <!-- Hero Section -->
+  <div class="panel hero" style="position:relative; overflow:hidden; min-height:200px; display:flex; align-items:center; justify-content:center; margin-bottom: 24px; padding: 0;">
+    {lineImage && (
+      <img src={lineImage} alt="未使用" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; filter: brightness(0.5) blur(2px);" />
+    )}
+    <div style="position:absolute; inset:0; background: rgba(0,0,0,0.3); z-index:1;"></div>
+    <div style="position:relative; z-index:2; padding:40px 24px; text-align:center; color: white;">
+      <h1 class="h1" style="margin:0; text-shadow:0 2px 10px rgba(0,0,0,0.8);">{melody.name}</h1>
+      <div class="meta" style="color:rgba(255,255,255,0.9); margin-top:8px; font-weight: 500;">
+        未使用・消滅
+      </div>
+      <div style="margin-top:24px;">
+        <button
+          class="btn"
+          type="button"
+          data-play
+          data-url={melody.audioUrls[0]}
+          data-title={melody.name}
+          data-subtitle="未使用・消滅"
+          style="padding: 8px 24px; font-size: 20px; background: #fff; color: var(--accent); border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2);"
+        >
+          ▶
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="panel col-12">
+      <div class="panel-pad" style="border-bottom:1px solid var(--border); background: rgba(0,0,0,0.02);">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">未使用・消滅情報</h2>
+        <div class="meta"></div>
+      </div>
+
+      <div class="panel-pad">
+        <ul class="list">
+          {unusedUsages.map((u) => (
+            <li>
+              <div style="flex: 1;">
+                <div style="font-weight:600;">
+                  {u.station === "未使用" ? "未使用" : u.station}
+                  {u.line === "未使用" ? " / 未使用" : u.line ? ` / ${u.line}` : ""}
+                </div>
+                {u.company && <div class="meta" style="margin-top:4px;">{u.company}</div>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</SiteLayout>

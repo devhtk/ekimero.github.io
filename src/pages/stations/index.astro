@@ -1,0 +1,152 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel } from "../../lib/data";
+import { stableEncode } from "../../lib/ids";
+
+const data = await loadDataModel();
+const companies = [...new Set(data.lines.map((l) => l.company))].sort((a, b) => a.localeCompare(b, "ja"));
+const linesByCompanyMap = new Map();
+for (const l of data.lines) {
+  if (!linesByCompanyMap.has(l.company)) linesByCompanyMap.set(l.company, []);
+  const arr = linesByCompanyMap.get(l.company);
+  if (!arr.includes(l.line)) arr.push(l.line);
+}
+for (const arr of linesByCompanyMap.values()) arr.sort((a: string, b: string) => a.localeCompare(b, "ja"));
+
+const stationsJSON = data.stations.slice().sort((a, b) => a.station.localeCompare(b.station, "ja")).map(s => ({
+  station: s.station,
+  companies: [...new Set(s.usages.map(u => u.company))],
+  lines: [...new Set(s.usages.map(u => u.line))],
+  usageCount: s.usages.length
+}));
+const companiesJSON = JSON.stringify(companies);
+const linesByCompanyJSON = JSON.stringify(Object.fromEntries(linesByCompanyMap));
+---
+
+<SiteLayout title="駅から探す — どこでも駅メロ">
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <span>駅から探す</span>
+  </nav>
+
+  <div class="panel panel-pad">
+    <h1 class="h1">駅から探す</h1>
+    <p class="muted">鉄道駅で使われている駅メロを検索します。</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center;">
+      <input type="text" id="searchInput" placeholder="駅名で検索…" class="search" style="flex: 1; min-width: 200px;" />
+      <select id="companyFilter" class="btn" style="padding: 10px;"><option value="">全ての会社</option></select>
+      <select id="lineFilter" class="btn" style="padding: 10px;"><option value="">全ての路線</option></select>
+      <button id="clearBtn" class="btn" style="padding: 10px;">クリア</button>
+    </div>
+    <div id="resultInfo" class="meta" style="margin-top:12px;"></div>
+  </div>
+
+  <section class="panel" style="margin-top:24px;">
+    <ul id="stationsList" class="list"></ul>
+  </section>
+
+  <div id="pagerContainer" style="margin-top: 24px;"></div>
+</SiteLayout>
+
+<script define:vars={{ stationsJSON, companiesJSON, linesByCompanyJSON }}>
+  const allStations = stationsJSON;
+  const companies = JSON.parse(companiesJSON);
+  const linesByCompany = JSON.parse(linesByCompanyJSON);
+  const PAGE_SIZE = 50;
+  let currentPage = 1;
+  let filtered = allStations;
+
+  const searchInput = document.getElementById("searchInput");
+  const companyFilter = document.getElementById("companyFilter");
+  const lineFilter = document.getElementById("lineFilter");
+  const clearBtn = document.getElementById("clearBtn");
+  const resultInfo = document.getElementById("resultInfo");
+  const stationsList = document.getElementById("stationsList");
+  const pagerContainer = document.getElementById("pagerContainer");
+
+  companies.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    companyFilter.appendChild(opt);
+  });
+
+  function encode(s) {
+    return encodeURIComponent(s).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  }
+
+  function updateLines() {
+    lineFilter.innerHTML = '<option value="">全ての路線</option>';
+    const co = companyFilter.value;
+    if (co && linesByCompany[co]) {
+      linesByCompany[co].forEach(line => {
+        const opt = document.createElement('option');
+        opt.value = line;
+        opt.textContent = line;
+        lineFilter.appendChild(opt);
+      });
+    }
+  }
+
+  function doFilter() {
+    const q = searchInput.value.toLowerCase();
+    const co = companyFilter.value;
+    const li = lineFilter.value;
+    filtered = allStations.filter(s => {
+      if (q && !s.station.toLowerCase().includes(q)) return false;
+      if (co && !s.companies.includes(co)) return false;
+      if (li && !s.lines.includes(li)) return false;
+      return true;
+    });
+    currentPage = 1;
+    render();
+  }
+
+  function render() {
+    const total = Math.ceil(filtered.length / PAGE_SIZE);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = Math.min(currentPage * PAGE_SIZE, filtered.length);
+
+    if (!filtered.length) {
+      resultInfo.innerHTML = '<span>検索結果がありません</span>';
+      stationsList.innerHTML = '';
+      pagerContainer.innerHTML = '';
+      return;
+    }
+
+    resultInfo.innerHTML = `<strong>${filtered.length}件</strong>が見つかりました${total > 1 ? ` • ページ ${currentPage}/${total}` : ''} • ${start + 1}～${end}件表示`;
+    
+    const items = filtered.slice(start, end);
+    stationsList.innerHTML = items.map(s => `
+      <li>
+        <div style="flex: 1;">
+          <a href="/stations/${encode(s.station)}" style="font-weight:600; color: inherit;">${s.station}駅</a>
+          <div class="meta" style="margin-top: 4px;">${s.lines.slice(0, 3).join(' / ')}${s.lines.length > 3 ? ' ほか' : ''} ・ 使用 ${s.usageCount}件</div>
+        </div>
+        <a class="btn" href="/stations/${encode(s.station)}" style="font-size: 12px; padding: 6px 16px;">開く</a>
+      </li>
+    `).join('');
+
+    if (total <= 1) { pagerContainer.innerHTML = ''; return; }
+
+    const pages = [];
+    for (let p = Math.max(1, currentPage - 2); p <= Math.min(total, currentPage + 2); p++) pages.push(p);
+    
+    let h = '<nav class="pager"><button class="btn" onclick="window.sp(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>最初</button>';
+    h += '<button class="btn" onclick="window.sp(' + Math.max(1, currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '>前へ</button>';
+    h += '<div class="pager-pages">';
+    if (pages[0] > 1) h += '<span class="meta">…</span>';
+    pages.forEach(p => h += '<button class="btn ' + (p === currentPage ? 'btn-primary' : '') + '" onclick="window.sp(' + p + ')">' + p + '</button>');
+    if (pages[pages.length - 1] < total) h += '<span class="meta">…</span>';
+    h += '</div><button class="btn" onclick="window.sp(' + Math.min(total, currentPage + 1) + ')" ' + (currentPage === total ? 'disabled' : '') + '>次へ</button>';
+    h += '<button class="btn" onclick="window.sp(' + total + ')" ' + (currentPage === total ? 'disabled' : '') + '>最後</button></nav>';
+    pagerContainer.innerHTML = h;
+  }
+
+  window.sp = (p) => { currentPage = p; render(); stationsList.scrollIntoView({ behavior: 'smooth' }); };
+  searchInput.addEventListener('input', doFilter);
+  companyFilter.addEventListener('change', () => { updateLines(); doFilter(); });
+  lineFilter.addEventListener('change', doFilter);
+  clearBtn.addEventListener('click', () => { searchInput.value = ''; companyFilter.value = ''; lineFilter.value = ''; updateLines(); doFilter(); });
+  render();
+</script>

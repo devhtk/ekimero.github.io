@@ -1,0 +1,133 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { loadDataModel, type Usage } from "../../lib/data";
+import { getLineLogo, getLineImage, companyLogo, companyBrandColor } from "../../lib/branding";
+import { stableEncode } from "../../lib/ids";
+
+export async function getStaticPaths() {
+  const data = await loadDataModel();
+  return data.stations.map((s) => ({ params: { stationName: s.station } }));
+}
+
+const { stationName } = Astro.params;
+const data = await loadDataModel();
+const station = data.stations.find((s) => s.station === stationName);
+if (!station) throw new Error(`Station not found: ${stationName}`);
+
+// Filter out unused melodies unless this station is "未使用"
+const relevantUsages = stationName === "未使用" 
+  ? station.usages 
+  : station.usages.filter((u) => !(u.station === "未使用" || u.line === "未使用"));
+
+// Group by Company -> Track -> Line
+interface TrackGroup {
+  track: string;
+  usages: Usage[];
+}
+
+interface CompanyGroup {
+  company: string;
+  tracks: TrackGroup[];
+}
+
+const companyGrouped = new Map<string, Map<string, Usage[]>>();
+
+for (const u of relevantUsages) {
+  if (!companyGrouped.has(u.company)) {
+    companyGrouped.set(u.company, new Map());
+  }
+  const trackMap = companyGrouped.get(u.company)!;
+  const trackKey = u.track || "その他";
+  if (!trackMap.has(trackKey)) {
+    trackMap.set(trackKey, []);
+  }
+  trackMap.get(trackKey)!.push(u);
+}
+
+const companyList: CompanyGroup[] = [...companyGrouped.entries()]
+  .sort((a, b) => a[0].localeCompare(b[0], "ja"))
+  .map(([company, trackMap]) => ({
+    company,
+    tracks: [...trackMap.entries()]
+      .map(([track, usages]) => ({
+        track,
+        usages: usages.sort((a, b) => a.line.localeCompare(b.line, "ja"))
+      }))
+      .sort((a, b) => {
+        const an = parseInt(a.track);
+        const bn = parseInt(b.track);
+        if (!isNaN(an) && !isNaN(bn)) return an - bn;
+        return a.track.localeCompare(b.track);
+      })
+  }));
+
+// Get representative line for the station to show as background
+const representativeLine = relevantUsages[0]?.line || "";
+const lineImage = getLineImage(representativeLine);
+---
+<SiteLayout title={`${station.station}駅 — どこでも駅メロ`}>
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <a href="/companies">会社別</a> &gt; 
+    <span>{station.station}</span>
+  </nav>
+
+  <!-- Hero Section -->
+  <div class="panel hero" style="position:relative; overflow:hidden; min-height:200px; display:flex; align-items:center; justify-content:center; margin-bottom: 24px; padding: 0;">
+    {lineImage && (
+      <img src={lineImage} alt={representativeLine} style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position: center; z-index:0; filter: brightness(0.5) blur(2px);" />
+    )}
+    <div style="position:absolute; inset:0; background: rgba(0,0,0,0.3); z-index:1;"></div>
+    <div style="position:relative; z-index:2; padding:40px 24px; text-align:center; color: white;">
+      <h1 class="h1" style="margin:0; text-shadow:0 2px 10px rgba(0,0,0,0.8);">{station.station}駅</h1>
+      <div class="meta" style="color:rgba(255,255,255,0.9); font-weight: 500; font-size: 1.1em; margin-top:8px;">
+        {relevantUsages.length}件のメロディ
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="panel col-12">
+      <div class="panel-pad" style="border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background: rgba(0,0,0,0.02);">
+        <h2 style="font-size:1.1em; margin:0; font-weight:700;">メロディ一覧</h2>
+        <a class="btn" href="/melodies" style="font-size: 12px; padding: 4px 12px;">全メロディを見る</a>
+      </div>
+      {companyList.map(({ company, tracks }) => (
+        <>
+          <div style="padding: 12px 16px; background: rgba(0,0,0,0.03); font-weight: 700; color: var(--text); font-size: 0.98em; border-bottom: 2px solid var(--border);">
+            {company}
+          </div>
+          {tracks.map(({ track, usages }) => (
+            <>
+              <div style="padding: 8px 16px; background: var(--bg); font-weight: 600; color: var(--muted); font-size: 0.88em; border-bottom: 1px solid var(--border);">
+                {track}番線
+              </div>
+              <ul class="list">
+                {usages.map((u) => (
+                  <li>
+                    <div style="flex: 1;">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <a href={`/melodies/${stableEncode(u.melody)}`} style="font-weight:600; color: inherit;">{u.melody}</a>
+                        {u.bound && <span class="badge" style="font-size: 11px;">{u.bound}</span>}
+                      </div>
+                      <div class="meta" style="margin-top:2px;">
+                        <img src={getLineLogo(u.line)} alt="" style="height:16px; width:auto; vertical-align:middle; margin-right:4px;" onerror="this.style.display='none'" />
+                        <a href={`/lines/${stableEncode(u.line)}`} style="color: var(--link); font-weight: 600; text-decoration: underline; text-underline-offset: 4px;">
+                          {u.line}
+                        </a>
+                      </div>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                      <button class="btn btn-primary" data-play data-url={u.audioUrl} data-title={u.melody} data-subtitle={`${station.station} / ${u.line}`} style="padding: 4px 8px; font-size: 14px; font-weight: 600; min-width: auto;" title="再生">▶</button>
+                      <a class="btn" href={`/melodies/${stableEncode(u.melody)}`} style="font-size: 12px; padding: 4px 10px;">開く</a>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ))}
+        </>
+      ))}
+    </section>
+  </div>
+</SiteLayout>

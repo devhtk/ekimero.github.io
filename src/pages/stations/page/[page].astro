@@ -1,0 +1,139 @@
+---
+import SiteLayout from "../../../layouts/SiteLayout.astro";
+import Pager from "../../../components/Pager.astro";
+import { loadDataModel, type Line } from "../../../lib/data";
+
+export async function getStaticPaths() {
+  const PAGE_SIZE = 50;
+  const data = await loadDataModel();
+  const totalPages = Math.max(1, Math.ceil(data.stations.length / PAGE_SIZE));
+  return Array.from({ length: totalPages }, (_, i) => ({
+    params: { page: String(i + 1) },
+  }));
+}
+
+const data = await loadDataModel();
+const PAGE_SIZE = 50;
+const page = Math.max(1, Number(Astro.params.page || "1") || 1);
+const totalPages = Math.max(1, Math.ceil(data.stations.length / PAGE_SIZE));
+const start = (page - 1) * PAGE_SIZE;
+const slice = data.stations.slice(start, start + PAGE_SIZE);
+
+const companies = [...new Set(data.lines.map((l) => l.company))].sort((a, b) => a.localeCompare(b, "ja"));
+const linesByCompany = new Map<string, Line[]>();
+for (const l of data.lines) {
+  const arr = linesByCompany.get(l.company) || [];
+  arr.push(l);
+  linesByCompany.set(l.company, arr);
+}
+for (const [k, arr] of linesByCompany.entries()) {
+  arr.sort((a, b) => a.line.localeCompare(b.line, "ja"));
+  linesByCompany.set(k, arr);
+}
+---
+<SiteLayout title={`駅一覧（${page}/${totalPages}）— どこでも駅メロ`}>
+  <nav class="breadcrumb meta" style="margin-bottom: 16px;">
+    <a href="/">ホーム</a> &gt; 
+    <a href="/stations">駅から探す</a> &gt;
+    <span>ページ {page}</span>
+  </nav>
+
+  <div class="panel panel-pad">
+    <h1 class="h1">駅から探す</h1>
+    <p class="muted" style="margin:8px 0 0 0;">駅名で検索して、会社・路線で絞り込みできます。</p>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+      <input class="search" placeholder="駅名で検索…" data-search style="flex: 1; min-width: 200px;" />
+      <select class="btn" data-company style="padding: 10px;">
+        <option value="">全ての会社</option>
+        {companies.map((c) => (
+          <option value={c}>{c}</option>
+        ))}
+      </select>
+      <select class="btn" data-line style="padding: 10px;">
+        <option value="">全ての路線</option>
+      </select>
+    </div>
+    <div class="meta" style="margin-top:10px;">{data.stations.length}件中 {start + 1}〜{Math.min(start + PAGE_SIZE, data.stations.length)}件を表示</div>
+  </div>
+
+  <section class="panel" style="margin-top:16px;">
+    <ul class="list" data-list>
+      {slice.map((s) => {
+        const companyList = [...new Set(s.usages.map((u) => u.company))];
+        const lineList = [...new Set(s.usages.map((u) => u.line))];
+        return (
+          <li data-item data-company={companyList.join("|")} data-line={lineList.join("|")} data-text={`${s.station} ${companyList.join(" ")} ${lineList.join(" ")}`}>
+            <div style="flex: 1;">
+              <a href={`/stations/${s.station}`} style="font-weight:600; font-size: 1em; color: inherit;">{s.station}駅</a>
+              <div class="meta" style="margin-top: 4px;">
+                {lineList.slice(0, 3).join(" / ")}{lineList.length > 3 ? " ほか" : ""} ・ 使用 {s.usages.length}件
+              </div>
+            </div>
+            <a class="btn" href={`/stations/${s.station}`} style="font-size: 12px; padding: 6px 16px;">開く</a>
+          </li>
+        );
+      })}
+    </ul>
+  </section>
+
+  <Pager page={page} totalPages={totalPages} basePath="/stations" />
+
+  <script define:vars={{ allStations: data.stations, linesByCompany: Object.fromEntries([...linesByCompany.entries()].map(([k, arr]) => [k, arr.map((l) => l.line)])) }}>
+    // @ts-nocheck
+    const input = /** @type {HTMLInputElement | null} */ (document.querySelector("[data-search]"));
+    const companySel = /** @type {HTMLSelectElement | null} */ (document.querySelector("[data-company]"));
+    const lineSel = /** @type {HTMLSelectElement | null} */ (document.querySelector("[data-line]"));
+    const items = Array.from(document.querySelectorAll("[data-item]"));
+
+    function populateLines() {
+      const company = companySel.value;
+      const lines = company ? (linesByCompany[company] || []) : [];
+      lineSel.innerHTML = `<option value="">全ての路線</option>` + lines.map((l) => `<option value="${l}">${l}</option>`).join("");
+    }
+
+    function applyFilters() {
+      const q = (input.value || "").trim().toLowerCase();
+      const company = companySel.value;
+      const line = lineSel.value;
+
+      // Filter all stations
+      const filtered = allStations.filter((s) => {
+        const matchesSearch = !q || s.station.toLowerCase().includes(q);
+        const companyList = [...new Set(s.usages.map((u) => u.company))];
+        const lineList = [...new Set(s.usages.map((u) => u.line))];
+        const matchesCompany = !company || companyList.includes(company);
+        const matchesLine = !line || lineList.includes(line);
+        return matchesSearch && matchesCompany && matchesLine;
+      });
+
+      // If no results, hide all items
+      if (filtered.length === 0) {
+        for (const el of items) {
+          el.style.display = "none";
+        }
+        return;
+      }
+
+      // Show/hide items based on filters
+      for (const el of items) {
+        const t = (el.getAttribute("data-text") || "").toLowerCase();
+        const okQ = !q || t.includes(q);
+        const okC = !company || (el.getAttribute("data-company") || "").split("|").includes(company);
+        const okL = !line || (el.getAttribute("data-line") || "").split("|").includes(line);
+        el.style.display = okQ && okC && okL ? "flex" : "none";
+      }
+    }
+
+    populateLines();
+    applyFilters();
+
+    input?.addEventListener("input", applyFilters);
+    companySel?.addEventListener("change", () => {
+      populateLines();
+      applyFilters();
+    });
+    lineSel?.addEventListener("change", applyFilters);
+  </script>
+</SiteLayout>
+
